@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>CyberGuess: v3.5 Pro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        /* --- GENEL AYARLAR --- */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body { 
+            font-family: 'Outfit', sans-serif; 
+            display: flex; height: 100vh; color: white; overflow: hidden; 
+            background: url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1920&auto=format&fit=crop') no-repeat center center fixed; 
+            background-size: cover; transition: all 0.5s ease;
+        }
+        
+        body::before {
+            content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(10, 10, 20, 0.9); z-index: -1; transition: all 0.5s ease;
+        }
+
+        /* --- GİRİŞ EKRANI --- */
+        #login-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); z-index: 9999;
+            display: flex; justify-content: center; align-items: center; flex-direction: column;
+        }
+        .login-box {
+            background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(20px);
+            padding: 50px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);
+            text-align: center; width: 380px; box-shadow: 0 0 50px rgba(108, 92, 231, 0.2);
+        }
+
+        /* --- RED CUP TASARIMI --- */
+        .game-area-container {
+            position: relative; width: 100%; height: 300px;
+            display: flex; justify-content: center; align-items: center;
+            margin-top: 30px;
+            background: radial-gradient(ellipse at center, rgba(255,255,255,0.1) 0%, rgba(0,0,0,0) 60%);
+        }
+        .cups-wrapper { position: relative; width: 400px; height: 200px; }
+        .cup-container {
+            position: absolute; top: 50px; width: 90px; height: 120px;
+            cursor: pointer; transition: transform 0.4s cubic-bezier(0.25, 0.1, 0.25, 1.0);
+        }
+        .cup {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10;
+            background: linear-gradient(90deg, #b71540 0%, #e55039 40%, #e55039 60%, #b71540 100%);
+            border-radius: 4px 4px 35px 35px;
+            border-bottom: 6px solid #f1f2f6; border-top: 2px solid rgba(255,255,255,0.3);
+            box-shadow: inset 5px 0 10px rgba(0,0,0,0.3), inset -5px 0 10px rgba(0,0,0,0.3), 0 15px 25px rgba(0,0,0,0.5);
+            transition: transform 0.3s ease;
+        }
+        .cup.lifted { transform: translateY(-90px); }
+        .ball {
+            position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+            width: 30px; height: 30px;
+            background: radial-gradient(circle at 10px 10px, #fff, #2ecc71);
+            border-radius: 50%; z-index: 1; box-shadow: 0 5px 10px rgba(0,0,0,0.5); display: none;
+        }
+        .cup-container.has-ball .ball { display: block; }
+        .blocked { pointer-events: none; }
+
+        /* ADMIN HIGHLIGHT */
+        body.admin-modu-acik .cup-container.admin-target .cup {
+            box-shadow: 0 0 20px 5px red; 
+            border: 2px solid red;
+        }
+
+        /* --- UI --- */
+        .demo-btns { display: flex; gap: 10px; margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px; }
+        .demo-btn { flex: 1; padding: 10px; border-radius: 8px; border: none; cursor: pointer; font-size: 0.8em; font-weight: 600; color: white; transition: 0.3s; }
+        .demo-user { background: rgba(255,255,255,0.1); }
+        .demo-admin { background: rgba(231, 76, 60, 0.2); color: #ff7675; }
+        .admin-gizli { display: none !important; }
+        body.admin-modu-acik .admin-gizli { display: block !important; }
+        
+        .admin-hack-box {
+            background: rgba(231, 76, 60, 0.2); border: 1px dashed #e74c3c; color: #ff7675;
+            padding: 10px; margin-bottom: 15px; border-radius: 5px; font-family: monospace;
+            font-size: 1.2em; letter-spacing: 1px; animation: pulse 2s infinite;
+        }
+
+        #site-container { display: none; width: 100%; height: 100%; display: flex; }
+        .sidebar { width: 280px; background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(20px); border-right: 1px solid rgba(255, 255, 255, 0.05); display: flex; flex-direction: column; padding: 40px 20px; }
+        .menu-btn { background: transparent; border: none; color: #a0a0a0; padding: 18px; width: 100%; text-align: left; font-size: 16px; cursor: pointer; border-radius: 10px; margin-bottom: 8px; transition: 0.3s; }
+        .menu-btn.aktif { background: linear-gradient(90deg, #6c5ce7, #a29bfe); color: white; box-shadow: 0 5px 15px rgba(108, 92, 231, 0.3); }
+        .menu-btn.admin-ozel { color: #ff7675; border: 1px solid rgba(255, 118, 117, 0.2); }
+        
+        .main-content { flex: 1; padding: 50px; overflow-y: auto; }
+        .sayfa { display: none; animation: fadeIn 0.5s ease; }
+        .sayfa.aktif { display: block; }
+        
+        .stat-card { padding: 25px; background: rgba(255,255,255,0.05); border-radius: 15px; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px); }
+        input { padding: 15px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); width: 100%; color: white; outline: none; margin-top: 10px; }
+        .action-btn { padding: 15px; width: 100%; border-radius: 10px; border: none; background: #6c5ce7; color: white; cursor: pointer; font-weight: 600; margin-top: 20px; }
+        .game-panel { background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; padding: 50px; max-width: 600px; margin: 40px auto; text-align: center; backdrop-filter: blur(15px); }
+        #ekran { margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 10px; }
+
+        /* TABLO STİLLERİ */
+        .user-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .user-table th, .user-table td { padding: 15px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .user-table th { color: #6c5ce7; font-weight: 600; }
+
+        /* LIGHT MODE */
+        body.light-mode { background-image: url('https://images.unsplash.com/photo-1497215728101-856f4ea42174?q=80&w=1920&auto=format&fit=crop'); color: #2d3436; }
+        body.light-mode::before { background: rgba(255, 255, 255, 0.6); backdrop-filter: blur(3px); }
+        body.light-mode .sidebar { background: rgba(255,255,255,0.75); border-right: 1px solid rgba(255, 255, 255, 0.8); color: #2d3436; }
+        body.light-mode .game-panel, body.light-mode .stat-card, body.light-mode .login-box, body.light-mode #sayfa-admin > div { background: rgba(255, 255, 255, 0.85); color: #2d3436; box-shadow: 0 10px 40px rgba(31, 38, 135, 0.15); }
+        body.light-mode input { background: #ffffff; color: #2d3436; border: 1px solid #dfe6e9; }
+        body.light-mode h1, body.light-mode h2 { color: #2d3436; }
+        body.light-mode .user-table th { color: #6c5ce7; }
+        body.light-mode .user-table td { border-bottom: 1px solid #dfe6e9; }
+    </style>
+</head>
+<body>
+
+    <div id="login-overlay">
+        <div class="login-box">
+            <h2 style="margin-bottom: 30px; letter-spacing: 2px;">CYBER GUESS</h2>
+            <input type="text" id="kullaniciAdiInput" placeholder="Kullanıcı Adı">
+            <input type="password" id="sifreInput" placeholder="Şifre">
+            <button class="action-btn" onclick="girisKontrol()">GİRİŞ YAP</button>
+            <p id="girisHata" style="color: #ff7675; margin-top: 15px; display: none;">⚠️ Hatalı Kullanıcı Adı veya Şifre!</p>
+            <div class="demo-btns">
+                <button class="demo-btn demo-user" onclick="hizliGiris('Ali', '1234')">👤 Ali (User)</button>
+                <button class="demo-btn demo-admin" onclick="hizliGiris('Admin', '0000')">🔑 Admin (Root)</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="site-container"> 
+        <div class="sidebar">
+            <h2 style="text-align: center; margin-bottom: 40px; font-weight: 600; letter-spacing: 1px;">CYBER GUESS</h2>
+            <button class="menu-btn aktif" onclick="sayfaGecis('sayfa-anasayfa', this)">📊 Genel Bakış</button>
+            <button class="menu-btn" onclick="sayfaGecis('sayfa-tahmin-oyunu', this)">🎮 Sayı Tahmin</button>
+            <button class="menu-btn" onclick="sayfaGecis('sayfa-bardak-oyunu', this)">🎲 Bardak Oyunu</button>
+            <button class="menu-btn" onclick="sayfaGecis('sayfa-ayarlar', this)">⚙️ Ayarlar</button>
+            <div style="flex: 1;"></div>
+            <button class="menu-btn admin-gizli admin-ozel" onclick="sayfaGecis('sayfa-admin', this)">🔒 YÖNETİM PANELİ</button>
+        </div>
+
+        <div class="main-content">
+            <div id="sayfa-anasayfa" class="sayfa aktif">
+                <h1>Hoş Geldin, <span id="kullaniciIsmiDisplay">Misafir</span>!</h1>
+                <p>Bakiyeniz tüm oyunlarda ortaktır.</p>
+                
+                <div style="margin-top: 30px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;">
+                    <div class="stat-card"><h3>Toplam Ziyaretçi</h3><h1 id="ziyaretciSayisi" style="color: #6c5ce7;">...</h1></div>
+                    <div class="stat-card"><h3>Ortak Bakiye</h3><h1 id="anaBakiyeGosterge">0 ₺</h1></div>
+                    <div class="stat-card"><h3>Sürüm</h3><h1 style="color: #a29bfe;">v3.5 Pro</h1></div>
+                    <div class="stat-card"><h3>Sunucu</h3><h3 style="color: #55efc4">Online</h3></div>
+                </div>
+            </div>
+
+            <div id="sayfa-tahmin-oyunu" class="sayfa">
+                <div class="game-panel">
+                    <div class="admin-hack-box admin-gizli">
+                        🕵️ ADMIN: <span id="admin-gizli-sayi-gosterge">?</span>
+                        <button onclick="adminHileYap()" style="background:red; color:white; border:none; padding:5px; cursor:pointer;">HİLE</button>
+                    </div>
+                    <h2>🎮 Sayı Tahmin</h2>
+                    <h1 id="bakiyeGostergesiTahmin" style="color: #feca57; font-size: 2em;">0 ₺</h1>
+                    <p id="soruMetni" style="margin-top: 10px;">Lütfen Başlangıç Bakiyesini Yükleyin:</p>
+                    <input type="number" id="veriInput" placeholder="Miktar..." autocomplete="off">
+                    <button class="action-btn" onclick="oyunIslemi()">GÖNDER</button>
+                    <div id="ekran">Veri girişi bekleniyor...</div>
+                </div>
+            </div>
+
+            <div id="sayfa-bardak-oyunu" class="sayfa">
+                <div class="game-panel">
+                    <div class="admin-hack-box admin-gizli">
+                        🕵️ ADMIN: <span id="admin-bardak-durum">Oyun Bekleniyor</span>
+                        <span id="admin-bardak-sonuc" style="font-weight:bold; color:yellow; margin-left:5px;"></span>
+                        <button onclick="bardakAdminKazan()" style="background:red; color:white; border:none; padding:5px; cursor:pointer; margin-left:10px;">KAZAN</button>
+                    </div>
+
+                    <h2 style="color: #a29bfe;">🎲 Kırmızı Bardak Oyunu</h2>
+                    <h1 id="bakiyeGostergesiBardak" style="color: #feca57; font-size: 2em;">0 ₺</h1>
+                    
+                    <div id="bardakBaslangic">
+                        <p>Oynamak için bakiye yükleyin (Min 20 ₺)</p>
+                        <input type="number" id="bardakBakiyeInput" placeholder="Miktar...">
+                        <button class="action-btn" onclick="bardakBakiyeYukle()">BAKİYE YÜKLE</button>
+                    </div>
+
+                    <div id="bardakOyunAlani" style="display:none;">
+                        <button id="baslaBtn" class="action-btn" style="background: #e17055; width: auto; padding: 10px 40px;" onclick="bardakTuruBaslat()">BAHİS KOY VE BAŞLA (20 ₺)</button>
+                        
+                        <div id="acilParaAlani" style="display:none; background:rgba(255,0,0,0.1); border:1px solid red; padding:15px; margin-top:20px; border-radius:10px;">
+                            <h3 style="color:#ff7675;">💸 BAKİYE BİTTİ!</h3>
+                            <p>Oynamaya devam etmek için para ekle:</p>
+                            <input type="number" id="acilBakiyeInput" placeholder="Yüklenecek Tutar..." style="width:150px;">
+                            <button class="action-btn" onclick="acilParaYukle()" style="width:auto; padding:10px 20px; background:#00b894;">YÜKLE VE DEVAM ET</button>
+                        </div>
+
+                        <p id="bardakDurum" style="margin-top:15px; color:#aaa;">Hazır olduğunda başla...</p>
+                        <div class="game-area-container"><div class="cups-wrapper" id="cupsWrapper"></div></div>
+                        <div id="bardakSonuc" style="margin-top: 10px; min-height: 40px; font-weight:bold; font-size: 1.2em;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="sayfa-ayarlar" class="sayfa">
+                <h1>Ayarlar</h1>
+                <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 15px; margin-top: 20px;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="karanlikModToggle" checked style="width: 20px;"> Karanlık Mod / Aydınlık Mod
+                    </label>
+                </div>
+                <br><button onclick="location.reload()" style="padding: 10px 20px; background: #ff7675; border: none; color: white; border-radius: 5px; cursor: pointer;">Çıkış Yap</button>
+            </div>
+            
+            <div id="sayfa-admin" class="sayfa">
+                <h1 style="color: #ff7675;">🔒 Yönetim Paneli</h1>
+                <div style="margin-top: 30px; background: rgba(0,0,0,0.3); padding: 30px; border-radius: 15px;">
+                    <h3>Kayıtlı Kullanıcılar</h3>
+                    <table class="user-table">
+                        <thead><tr><th>ID</th><th>Kullanıcı Adı</th><th>Yetki</th><th>İşlem</th></tr></thead>
+                        <tbody>
+                            <tr><td>1</td><td>Admin</td><td><span style="color:#ff7675">Root</span></td><td>-</td></tr>
+                            <tr><td>2</td><td>Ali</td><td>User</td><td><button style="background:red; color:white; border:none; padding:5px;">Banla</button></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- SİSTEM ---
+        const USER_DB = { "Ali": "1234", "Admin": "0000" };
+        let bakiye = 0; 
+
+        function girisKontrol() {
+            let ad = document.getElementById("kullaniciAdiInput").value;
+            let sifre = document.getElementById("sifreInput").value;
+            if (USER_DB[ad] && USER_DB[ad] === sifre) {
+                document.getElementById("login-overlay").style.display = "none";
+                document.getElementById("site-container").style.display = "flex";
+                document.getElementById("kullaniciIsmiDisplay").innerText = ad;
+                ziyaretciSayisiniGetir();
+                if (ad === "Admin") document.body.classList.add("admin-modu-acik"); 
+                tumBakiyeleriGuncelle();
+                bardaklariOlustur(); 
+            } else { document.getElementById("girisHata").style.display = "block"; }
+        }
+        function hizliGiris(ad, sifre) {
+            document.getElementById("kullaniciAdiInput").value = ad;
+            document.getElementById("sifreInput").value = sifre;
+            girisKontrol();
+        }
+        function tumBakiyeleriGuncelle() {
+            document.getElementById("anaBakiyeGosterge").innerText = bakiye + " ₺";
+            document.getElementById("bakiyeGostergesiTahmin").innerText = bakiye + " ₺";
+            document.getElementById("bakiyeGostergesiBardak").innerText = bakiye + " ₺";
+        }
+        
+        function sayfaGecis(sayfaId, btn) {
+            document.querySelectorAll('.sayfa').forEach(div => div.classList.remove('aktif'));
+            document.getElementById(sayfaId).classList.add('aktif');
+            document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('aktif'));
+            btn.classList.add('aktif');
+            
+            if (sayfaId === 'sayfa-tahmin-oyunu') {
+                if(bakiye >= 15) { oyunuBaslat(); } 
+                else { oyunAsamasi = "bakiyeAlma"; document.getElementById("soruMetni").innerText = "Lütfen Başlangıç Bakiyesini Yükleyin:"; document.getElementById("ekran").innerHTML = "Bakiye bekleniyor..."; }
+            }
+            if (sayfaId === 'sayfa-bardak-oyunu') {
+                if(bakiye >= 20) {
+                    document.getElementById("bardakBaslangic").style.display = "none";
+                    document.getElementById("bardakOyunAlani").style.display = "block";
+                    document.getElementById("baslaBtn").style.display = "inline-block";
+                    document.getElementById("acilParaAlani").style.display = "none";
+                    document.getElementById("bardakDurum").innerText = "Hazır olduğunda başla...";
+                } else {
+                    document.getElementById("bardakBaslangic").style.display = "block";
+                    document.getElementById("bardakOyunAlani").style.display = "none";
+                }
+            }
+            tumBakiyeleriGuncelle();
+        }
+
+        // --- ESKİ OYUN (SAYI TAHMİN) ---
+        let oyunAsamasi = "bakiyeAlma"; let tahminEdilecekSayi = 0; const yanlisTahminAzaltmasi = 15;
+        function rastgeleSayiUret() { return Math.floor(Math.random() * 100); }
+        function oyunIslemi() {
+            let input = document.getElementById("veriInput"); let ekran = document.getElementById("ekran"); let girilen = parseInt(input.value);
+            if (isNaN(girilen)) { ekran.innerHTML = "Lütfen sayı giriniz."; return; }
+            if (oyunAsamasi === "bakiyeAlma") {
+                if (girilen < 15) ekran.innerHTML = "Min 15 ₺ gerekli."; else { bakiye += girilen; tumBakiyeleriGuncelle(); oyunuBaslat(); }
+            } else if (oyunAsamasi === "tahminEtme") {
+                if (tahminEdilecekSayi == girilen) { bakiye *= 2; ekran.innerHTML = "<span style='color:#55efc4'>TEBRİKLER! 2x Kazandın!</span>"; setTimeout(oyunuBaslat, 2000); }
+                else { bakiye -= yanlisTahminAzaltmasi; ekran.innerHTML = "<span style='color:#ff7675'>Yanlış! Sayı: " + tahminEdilecekSayi + "</span>"; setTimeout(oyunuBaslat, 2000); }
+                tumBakiyeleriGuncelle();
+            } else if (oyunAsamasi === "paraYukleme") {
+                 if (girilen > 0) { bakiye += girilen; if(bakiye >= 15) oyunuBaslat(); else ekran.innerHTML = "Yetersiz."; } else ekran.innerHTML = "Pozitif gir."; tumBakiyeleriGuncelle();
+            }
+            input.value = "";
+        }
+        function oyunuBaslat() {
+            let ekran = document.getElementById("ekran");
+            if (bakiye < 15) { oyunAsamasi = "paraYukleme"; document.getElementById("soruMetni").innerText = "Bakiye bitti! Yükleme yapın:"; return; }
+            oyunAsamasi = "tahminEtme"; tahminEdilecekSayi = rastgeleSayiUret();
+            document.getElementById("admin-gizli-sayi-gosterge").innerText = tahminEdilecekSayi;
+            document.getElementById("soruMetni").innerText = "0-100 arası bir sayı tuttum.";
+            let ipucu = (tahminEdilecekSayi < 50) ? (tahminEdilecekSayi % 2 == 0 ? "0-50 & ÇİFT" : "0-50 & TEK") : (tahminEdilecekSayi % 2 == 0 ? "50-100 & ÇİFT" : "50-100 & TEK");
+            if(tahminEdilecekSayi > 100) ipucu = "Binary?";
+            ekran.innerHTML = "İpucu: <b>" + ipucu + "</b>";
+            tumBakiyeleriGuncelle();
+        }
+        function adminHileYap() { document.getElementById("veriInput").value = tahminEdilecekSayi; oyunIslemi(); }
+
+        // --- YENİ OYUN: BARDAK ---
+        let bardakPozisyonlari = [0, 1, 2];
+        let bardakObjeleri = [];
+        let dogruBardakId = -1;
+        let oyunOynaniyor = false;
+
+        function bardakBakiyeYukle() {
+            let miktar = parseInt(document.getElementById("bardakBakiyeInput").value);
+            if(miktar >= 20) { bakiye += miktar; document.getElementById("bardakBaslangic").style.display = "none"; document.getElementById("bardakOyunAlani").style.display = "block"; tumBakiyeleriGuncelle(); }
+            else alert("En az 20 ₺ yüklemelisin.");
+        }
+
+        function acilParaYukle() {
+            let miktar = parseInt(document.getElementById("acilBakiyeInput").value);
+            if(miktar > 0) {
+                bakiye += miktar;
+                document.getElementById("acilParaAlani").style.display = "none";
+                document.getElementById("baslaBtn").style.display = "inline-block";
+                document.getElementById("baslaBtn").innerText = "BAHSİ KOY VE BAŞLA (20 ₺)";
+                document.getElementById("bardakDurum").innerText = "Para yüklendi! Hazırsan başla.";
+                tumBakiyeleriGuncelle();
+            } else { alert("Geçerli bir miktar gir."); }
+        }
+
+        function bardaklariOlustur() {
+            const wrapper = document.getElementById("cupsWrapper");
+            wrapper.innerHTML = "";
+            bardakObjeleri = [];
+            for(let i=0; i<3; i++) {
+                let cupCont = document.createElement("div");
+                cupCont.className = "cup-container";
+                cupCont.id = "cup-container-" + i;
+                cupCont.style.transform = `translateX(${i * 130}px)`; 
+                cupCont.innerHTML = `
+                    <div class="cup" id="cup-visual-${i}"></div>
+                    <div class="ball"></div>
+                `;
+                cupCont.onclick = function() { bardakSec(i); };
+                wrapper.appendChild(cupCont);
+                bardakObjeleri.push(cupCont);
+            }
+        }
+
+        async function bardakTuruBaslat() {
+            if(bakiye < 20) { 
+                document.getElementById("bardakDurum").innerText = "⚠️ Bakiye Yetersiz! Lütfen para ekle.";
+                document.getElementById("baslaBtn").style.display = "none";
+                document.getElementById("acilParaAlani").style.display = "block";
+                return; 
+            }
+            if(oyunOynaniyor) return;
+            
+            oyunOynaniyor = true;
+            document.getElementById("baslaBtn").style.display = "none";
+            document.getElementById("bardakSonuc").innerText = "";
+            document.getElementById("cupsWrapper").classList.add("blocked");
+            document.getElementById("admin-bardak-durum").innerText = "Karıştırılıyor...";
+            document.getElementById("admin-bardak-sonuc").innerText = "";
+            
+            for(let i=0; i<3; i++) {
+                bardakObjeleri[i].querySelector(".cup").classList.remove("lifted");
+                bardakObjeleri[i].classList.remove("has-ball");
+                bardakObjeleri[i].classList.remove("admin-target"); 
+            }
+            
+            dogruBardakId = Math.floor(Math.random() * 3);
+            bardakObjeleri[dogruBardakId].classList.add("has-ball");
+            
+            document.getElementById("bardakDurum").innerText = "Top Burada! İzle...";
+            bardakObjeleri[dogruBardakId].querySelector(".cup").classList.add("lifted");
+            
+            await bekle(1000);
+            bardakObjeleri[dogruBardakId].querySelector(".cup").classList.remove("lifted");
+            
+            await bekle(500);
+            document.getElementById("bardakDurum").innerText = "Karıştırılıyor...";
+            
+            let karistirmaSayisi = 10;
+            let hiz = 300;
+
+            for(let k=0; k<karistirmaSayisi; k++) {
+                let pos1 = Math.floor(Math.random() * 3);
+                let pos2 = Math.floor(Math.random() * 3);
+                while(pos1 === pos2) { pos2 = Math.floor(Math.random() * 3); }
+                swapBardaklar(pos1, pos2);
+                if(k > 5) hiz = 200;
+                await bekle(hiz);
+            }
+            
+            let guncelSira = bardakPozisyonlari.indexOf(dogruBardakId) + 1;
+            document.getElementById("admin-bardak-durum").innerText = "Seçim Bekleniyor";
+            document.getElementById("admin-bardak-sonuc").innerText = "Top: " + guncelSira + ". Sırada";
+            
+            bardakObjeleri[dogruBardakId].classList.add("admin-target");
+
+            document.getElementById("bardakDurum").innerText = "Hangi Bardak? Seç!";
+            document.getElementById("cupsWrapper").classList.remove("blocked");
+        }
+        
+        function bardakAdminKazan() {
+            if(!oyunOynaniyor) { alert("Önce oyunu başlat!"); return; }
+            bardakSec(dogruBardakId);
+        }
+
+        function swapBardaklar(indexA, indexB) {
+            let bardakA = bardakPozisyonlari[indexA];
+            let bardakB = bardakPozisyonlari[indexB]; 
+            let domA = bardakObjeleri[bardakA];
+            let domB = bardakObjeleri[bardakB];
+            domA.style.transform = `translateX(${indexB * 130}px)`;
+            domB.style.transform = `translateX(${indexA * 130}px)`;
+            bardakPozisyonlari[indexA] = bardakB;
+            bardakPozisyonlari[indexB] = bardakA;
+        }
+
+        function bardakSec(secilenBardakGercekId) {
+            document.getElementById("cupsWrapper").classList.add("blocked");
+            bardakObjeleri[secilenBardakGercekId].querySelector(".cup").classList.add("lifted");
+
+            if(secilenBardakGercekId === dogruBardakId) {
+                bakiye *= 2;
+                document.getElementById("bardakSonuc").innerHTML = "<span style='color:#55efc4; font-size:1.5em;'>🎉 TEBRİKLER! (2x)</span>";
+            } else {
+                bakiye -= 20;
+                document.getElementById("bardakSonuc").innerHTML = "<span style='color:#ff7675'>BİLEMEDİN! -20 ₺</span>";
+                setTimeout(() => {
+                    bardakObjeleri[dogruBardakId].querySelector(".cup").classList.add("lifted");
+                }, 500);
+            }
+            tumBakiyeleriGuncelle();
+            
+            if(bakiye < 20) {
+                 setTimeout(() => {
+                    document.getElementById("acilParaAlani").style.display = "block";
+                    document.getElementById("bardakDurum").innerText = "Bakiye bitti. Para yükle.";
+                    oyunOynaniyor = false;
+                }, 1500);
+            } else {
+                setTimeout(() => {
+                    document.getElementById("baslaBtn").style.display = "inline-block";
+                    document.getElementById("baslaBtn").innerText = "TEKRAR OYNA";
+                    oyunOynaniyor = false;
+                }, 1500);
+            }
+        }
+        function bekle(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+        function ziyaretciSayisiniGetir() { fetch(`https://api.counterapi.dev/v1/cyberguess-demo-all/ziyaret/up`).then(r=>r.json()).then(d=>document.getElementById("ziyaretciSayisi").innerText=d.count); }
+        document.getElementById('karanlikModToggle').addEventListener('change', function() { if(this.checked) document.body.classList.remove('light-mode'); else document.body.classList.add('light-mode'); });
+    </script>
+</body>
+</html>
