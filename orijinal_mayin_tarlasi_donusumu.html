@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Mayın Tarlası</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #2c3e50;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        h1 { margin-bottom: 10px; }
+        .game-container {
+            background: #34495e;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+            text-align: center;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(10, 40px);
+            grid-template-rows: repeat(10, 40px);
+            gap: 2px;
+            margin-top: 10px;
+            border: 5px solid #bdc3c7;
+        }
+        .cell {
+            width: 40px;
+            height: 40px;
+            background-color: #bdc3c7;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            cursor: pointer;
+            user-select: none;
+            font-size: 18px;
+        }
+        .cell:hover { background-color: #a1b1b9; }
+        .cell.checked {
+            background-color: #ecf0f1;
+            color: #2c3e50;
+            cursor: default;
+        }
+        .cell.bomb {
+            background-color: #e74c3c;
+            color: white;
+        }
+        .cell.flag {
+            color: #e74c3c;
+        }
+        #status { margin-top: 15px; font-size: 1.2em; color: #f1c40f; min-height: 25px;}
+        button {
+            margin-top: 15px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        button:hover { background-color: #2ecc71; }
+    </style>
+</head>
+<body>
+
+    <div class="game-container">
+        <h1>Mayın Tarlası</h1>
+        <div id="status">Bol Şans!</div>
+        <div class="grid" id="grid"></div>
+        <button onclick="createBoard()">Yeniden Başlat</button>
+    </div>
+
+    <script>
+        const grid = document.getElementById("grid");
+        const statusDisplay = document.getElementById("status");
+        let width = 10;
+        let bombAmount = 15;
+        let squares = [];
+        let isGameOver = false;
+
+        function createBoard() {
+            grid.innerHTML = "";
+            squares = [];
+            isGameOver = false;
+            statusDisplay.innerHTML = "Bol Şans!";
+            
+            // Mayınları rastgele yerleştir
+            const bombsArray = Array(bombAmount).fill('bomb');
+            const emptyArray = Array(width * width - bombAmount).fill('valid');
+            const gameArray = emptyArray.concat(bombsArray);
+            const shuffledArray = gameArray.sort(() => Math.random() - 0.5);
+
+            for (let i = 0; i < width * width; i++) {
+                const square = document.createElement('div');
+                square.setAttribute('id', i);
+                square.classList.add('cell');
+                square.dataset.type = shuffledArray[i];
+                grid.appendChild(square);
+                squares.push(square);
+
+                // Sol Tık
+                square.addEventListener('click', function(e) {
+                    click(square);
+                });
+
+                // Sağ Tık (Bayrak)
+                square.oncontextmenu = function(e) {
+                    e.preventDefault();
+                    addFlag(square);
+                }
+            }
+        }
+
+        function addFlag(square) {
+            if (isGameOver) return;
+            if (!square.classList.contains('checked')) {
+                if (!square.classList.contains('flag')) {
+                    square.classList.add('flag');
+                    square.innerHTML = '🚩';
+                } else {
+                    square.classList.remove('flag');
+                    square.innerHTML = '';
+                }
+            }
+        }
+
+        function click(square) {
+            let currentId = square.id;
+            if (isGameOver) return;
+            if (square.classList.contains('checked') || square.classList.contains('flag')) return;
+
+            if (square.dataset.type === 'bomb') {
+                gameOver();
+            } else {
+                let total = parseInt(square.getAttribute('data')) || 0;
+                if (total !== 0) {
+                    square.classList.add('checked');
+                    square.innerHTML = total;
+                    return;
+                }
+                checkSquare(square, currentId);
+            }
+            square.classList.add('checked');
+        }
+
+        function checkSquare(square, currentId) {
+            const isLeftEdge = (currentId % width === 0);
+            const isRightEdge = (currentId % width === width - 1);
+            let total = 0;
+            let id = parseInt(currentId);
+
+            // Etrafındaki bombaları say
+            if (square.classList.contains('checked')) return;
+
+            // Komşu koordinatları kontrol et
+            // (Basitleştirilmiş komşu mantığı)
+            const neighbors = [-1, 1, -width, width, -width-1, -width+1, width-1, width+1];
+            
+            // Sınır kontrolleri ile döngü...
+            // Hızlı çözüm için HTML içinde basit mantık kuralım:
+            
+            // Daha sağlam algoritma:
+            calculateNumbers(); // Sayıları önceden hesapla
+            
+            let val = square.getAttribute('data');
+            if (val != 0) {
+                square.classList.add('checked');
+                square.innerHTML = val;
+                return;
+            }
+            
+            // 0 ise Flood Fill (Rekürsif açılma)
+            checkZero(id);
+        }
+
+        // Oyun başı sayıları hesapla
+        function calculateNumbers() {
+             for (let i = 0; i < squares.length; i++) {
+                let total = 0;
+                const isLeftEdge = (i % width === 0);
+                const isRightEdge = (i % width === width - 1);
+
+                if (squares[i].dataset.type === 'valid') {
+                    if (i > 0 && !isLeftEdge && squares[i - 1].dataset.type === 'bomb') total++;
+                    if (i > 9 && !isRightEdge && squares[i + 1 - width].dataset.type === 'bomb') total++;
+                    if (i > 10 && squares[i - width].dataset.type === 'bomb') total++;
+                    if (i > 11 && !isLeftEdge && squares[i - 1 - width].dataset.type === 'bomb') total++;
+                    if (i < 98 && !isRightEdge && squares[i + 1].dataset.type === 'bomb') total++;
+                    if (i < 90 && !isLeftEdge && squares[i - 1 + width].dataset.type === 'bomb') total++;
+                    if (i < 88 && !isRightEdge && squares[i + 1 + width].dataset.type === 'bomb') total++;
+                    if (i < 89 && squares[i + width].dataset.type === 'bomb') total++;
+                    squares[i].setAttribute('data', total);
+                    if (total > 0) squares[i].innerHTML = ""; 
+                }
+            }
+        }
+        
+        function checkZero(id) {
+             const isLeftEdge = (id % width === 0);
+             const isRightEdge = (id % width === width - 1);
+             
+             setTimeout(() => {
+                 if (squares[id].classList.contains('checked')) return;
+                 squares[id].classList.add('checked');
+                 
+                 let total = squares[id].getAttribute('data');
+                 if (total != 0) {
+                     squares[id].innerHTML = total;
+                     return;
+                 }
+                 
+                 // Komşuları tetikle
+                 if (id > 0 && !isLeftEdge) click(squares[id - 1]);
+                 if (id > 9 && !isRightEdge) click(squares[id + 1 - width]);
+                 if (id > 10) click(squares[id - width]);
+                 if (id > 11 && !isLeftEdge) click(squares[id - 1 - width]);
+                 if (id < 98 && !isRightEdge) click(squares[id + 1]);
+                 if (id < 90 && !isLeftEdge) click(squares[id - 1 + width]);
+                 if (id < 88 && !isRightEdge) click(squares[id + 1 + width]);
+                 if (id < 89) click(squares[id + width]);
+             }, 10);
+        }
+
+        function gameOver() {
+            statusDisplay.innerHTML = '💥 BOOM! Oyun Bitti!';
+            statusDisplay.style.color = '#e74c3c';
+            isGameOver = true;
+            squares.forEach(square => {
+                if (square.dataset.type === 'bomb') {
+                    square.innerHTML = '💣';
+                    square.classList.add('bomb');
+                }
+            });
+        }
+
+        createBoard();
+        setTimeout(calculateNumbers, 100); // Yüklenince hesapla
+
+    </script>
+</body>
+</html>
