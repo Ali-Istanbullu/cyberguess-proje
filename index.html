@@ -113,6 +113,27 @@
         body.light-mode h1, body.light-mode h2 { color: #2d3436; }
         body.light-mode .user-table th { color: #6c5ce7; }
         body.light-mode .user-table td { border-bottom: 1px solid #dfe6e9; }
+
+        /* --- MAYIN TARLASI STİLLERİ --- */
+        #sayfa-mayintarlasi .game-container {
+            background: rgba(0,0,0,0.4); padding: 40px; border-radius: 20px; 
+            border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(15px);
+            display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 20px auto; max-width: 500px;
+        }
+        #sayfa-mayintarlasi .grid {
+            display: grid; grid-template-columns: repeat(10, 40px); grid-template-rows: repeat(10, 40px);
+            gap: 2px; margin-top: 15px; border: 5px solid rgba(255,255,255,0.2); border-radius: 8px; overflow: hidden;
+        }
+        #sayfa-mayintarlasi .cell {
+            width: 40px; height: 40px; background-color: rgba(255,255,255,0.1);
+            display: flex; align-items: center; justify-content: center; font-weight: bold;
+            cursor: pointer; user-select: none; font-size: 18px; transition: 0.2s;
+        }
+        #sayfa-mayintarlasi .cell:hover { background-color: rgba(255,255,255,0.3); }
+        #sayfa-mayintarlasi .cell.checked { background-color: rgba(255,255,255,0.6); color: #2d3436; cursor: default; }
+        #sayfa-mayintarlasi .cell.bomb { background-color: #e74c3c; color: white; }
+        #sayfa-mayintarlasi .cell.flag { color: #ff7675; }
+        #sayfa-mayintarlasi #mt-status { margin-top: 15px; font-size: 1.2em; color: #feca57; min-height: 25px; }
     </style>
 </head>
 <body>
@@ -137,6 +158,7 @@
             <button class="menu-btn aktif" onclick="sayfaGecis('sayfa-anasayfa', this)">📊 Genel Bakış</button>
             <button class="menu-btn" onclick="sayfaGecis('sayfa-tahmin-oyunu', this)">🎮 Sayı Tahmin</button>
             <button class="menu-btn" onclick="sayfaGecis('sayfa-bardak-oyunu', this)">🎲 Bardak Oyunu</button>
+            <button class="menu-btn" onclick="sayfaGecis('sayfa-mayintarlasi', this)">💣 Mayın Tarlası</button>
             <button class="menu-btn" onclick="sayfaGecis('sayfa-ayarlar', this)">⚙️ Ayarlar</button>
             <div style="flex: 1;"></div>
             <button class="menu-btn admin-gizli admin-ozel" onclick="sayfaGecis('sayfa-admin', this)">🔒 YÖNETİM PANELİ</button>
@@ -204,6 +226,16 @@
                 </div>
             </div>
 
+            <div id="sayfa-mayintarlasi" class="sayfa">
+                <div class="game-container">
+                    <h2 style="color: #a29bfe; margin-bottom: 5px;">💣 Mayın Tarlası</h2>
+                    <h1 id="bakiyeGostergesiMayin" style="color: #feca57; font-size: 1.5em; margin-bottom: 10px;">0 ₺</h1>
+                    <div id="mt-status">Bol Şans!</div>
+                    <div class="grid" id="mt-grid"></div>
+                    <button class="action-btn" onclick="mt_createBoard()" style="width: auto; padding: 10px 30px;">Yeniden Başlat 🔄</button>
+                </div>
+            </div>
+
             <div id="sayfa-ayarlar" class="sayfa">
                 <h1>Ayarlar</h1>
                 <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 15px; margin-top: 20px;">
@@ -257,6 +289,7 @@
             document.getElementById("anaBakiyeGosterge").innerText = bakiye + " ₺";
             document.getElementById("bakiyeGostergesiTahmin").innerText = bakiye + " ₺";
             document.getElementById("bakiyeGostergesiBardak").innerText = bakiye + " ₺";
+            if (document.getElementById("bakiyeGostergesiMayin")) document.getElementById("bakiyeGostergesiMayin").innerText = bakiye + " ₺";
         }
         
         function sayfaGecis(sayfaId, btn) {
@@ -462,6 +495,126 @@
         function bekle(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
         function ziyaretciSayisiniGetir() { fetch(`https://api.counterapi.dev/v1/cyberguess-demo-all/ziyaret/up`).then(r=>r.json()).then(d=>document.getElementById("ziyaretciSayisi").innerText=d.count); }
         document.getElementById('karanlikModToggle').addEventListener('change', function() { if(this.checked) document.body.classList.remove('light-mode'); else document.body.classList.add('light-mode'); });
+
+        // --- MAYIN TARLASI OYUNU JS ---
+        let mt_width = 10;
+        let mt_bombAmount = 15;
+        let mt_squares = [];
+        let mt_isGameOver = false;
+
+        function mt_createBoard() {
+            const mt_grid = document.getElementById("mt-grid");
+            const mt_statusDisplay = document.getElementById("mt-status");
+            mt_grid.innerHTML = "";
+            mt_squares = [];
+            mt_isGameOver = false;
+            mt_statusDisplay.innerHTML = "Bol Şans!";
+            
+            const bombsArray = Array(mt_bombAmount).fill('bomb');
+            const emptyArray = Array(mt_width * mt_width - mt_bombAmount).fill('valid');
+            const gameArray = emptyArray.concat(bombsArray);
+            const shuffledArray = gameArray.sort(() => Math.random() - 0.5);
+
+            for (let i = 0; i < mt_width * mt_width; i++) {
+                const square = document.createElement('div');
+                square.setAttribute('id', 'mt-cell-' + i);
+                square.classList.add('cell');
+                square.dataset.type = shuffledArray[i];
+                mt_grid.appendChild(square);
+                mt_squares.push(square);
+
+                square.addEventListener('click', function() { mt_click(square, i); });
+                square.oncontextmenu = function(e) { e.preventDefault(); mt_addFlag(square); return false; }
+            }
+            setTimeout(mt_calculateNumbers, 100);
+        }
+
+        function mt_addFlag(square) {
+            if (mt_isGameOver) return;
+            if (!square.classList.contains('checked')) {
+                if (!square.classList.contains('flag')) {
+                    square.classList.add('flag'); square.innerHTML = '🚩';
+                } else {
+                    square.classList.remove('flag'); square.innerHTML = '';
+                }
+            }
+        }
+
+        function mt_click(square, i) {
+            if (mt_isGameOver) return;
+            if (square.classList.contains('checked') || square.classList.contains('flag')) return;
+
+            if (square.dataset.type === 'bomb') { mt_gameOver(); } 
+            else {
+                let total = parseInt(square.getAttribute('data')) || 0;
+                if (total !== 0) { square.classList.add('checked'); square.innerHTML = total; return; }
+                mt_checkSquare(square, i);
+            }
+            square.classList.add('checked');
+        }
+
+        function mt_checkSquare(square, currentId) {
+            if (square.classList.contains('checked')) return;
+            let val = parseInt(square.getAttribute('data')) || 0;
+            if (val !== 0) { square.classList.add('checked'); square.innerHTML = val; return; }
+            mt_checkZero(currentId);
+        }
+
+        function mt_calculateNumbers() {
+            for (let i = 0; i < mt_squares.length; i++) {
+                let total = 0;
+                const isLeftEdge = (i % mt_width === 0);
+                const isRightEdge = (i % mt_width === mt_width - 1);
+
+                if (mt_squares[i].dataset.type === 'valid') {
+                    if (i > 0 && !isLeftEdge && mt_squares[i - 1].dataset.type === 'bomb') total++;
+                    if (i > 9 && !isRightEdge && mt_squares[i + 1 - mt_width].dataset.type === 'bomb') total++;
+                    if (i > 10 && mt_squares[i - mt_width].dataset.type === 'bomb') total++;
+                    if (i > 11 && !isLeftEdge && mt_squares[i - 1 - mt_width].dataset.type === 'bomb') total++;
+                    if (i < 98 && !isRightEdge && mt_squares[i + 1].dataset.type === 'bomb') total++;
+                    if (i < 90 && !isLeftEdge && mt_squares[i - 1 + mt_width].dataset.type === 'bomb') total++;
+                    if (i < 88 && !isRightEdge && mt_squares[i + 1 + mt_width].dataset.type === 'bomb') total++;
+                    if (i < 89 && mt_squares[i + mt_width].dataset.type === 'bomb') total++;
+                    mt_squares[i].setAttribute('data', total);
+                    if (total > 0) mt_squares[i].innerHTML = ""; 
+                }
+            }
+        }
+        
+        function mt_checkZero(id) {
+             const isLeftEdge = (id % mt_width === 0);
+             const isRightEdge = (id % mt_width === mt_width - 1);
+             setTimeout(() => {
+                 if (mt_squares[id].classList.contains('checked')) return;
+                 mt_squares[id].classList.add('checked');
+                 
+                 let total = mt_squares[id].getAttribute('data');
+                 if (total != 0) { mt_squares[id].innerHTML = total; return; }
+                 
+                 if (id > 0 && !isLeftEdge) mt_click(mt_squares[id - 1], id - 1);
+                 if (id > 9 && !isRightEdge) mt_click(mt_squares[id + 1 - mt_width], id + 1 - mt_width);
+                 if (id > 10) mt_click(mt_squares[id - mt_width], id - mt_width);
+                 if (id > 11 && !isLeftEdge) mt_click(mt_squares[id - 1 - mt_width], id - 1 - mt_width);
+                 if (id < 98 && !isRightEdge) mt_click(mt_squares[id + 1], id + 1);
+                 if (id < 90 && !isLeftEdge) mt_click(mt_squares[id - 1 + mt_width], id - 1 + mt_width);
+                 if (id < 88 && !isRightEdge) mt_click(mt_squares[id + 1 + mt_width], id + 1 + mt_width);
+                 if (id < 89) mt_click(mt_squares[id + mt_width], id + mt_width);
+             }, 10);
+        }
+
+        function mt_gameOver() {
+            document.getElementById("mt-status").innerHTML = '💥 BOOM! Oyun Bitti!';
+            document.getElementById("mt-status").style.color = '#ff7675';
+            mt_isGameOver = true;
+            mt_squares.forEach(square => {
+                if (square.dataset.type === 'bomb') {
+                    square.innerHTML = '💣'; square.classList.add('bomb');
+                }
+            });
+        }
+        
+        // İlk yüklemede panoyu hazırla
+        mt_createBoard();
     </script>
 </body>
 </html>
