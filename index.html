@@ -230,9 +230,19 @@
                 <div class="game-container">
                     <h2 style="color: #a29bfe; margin-bottom: 5px;">💣 Mayın Tarlası</h2>
                     <h1 id="bakiyeGostergesiMayin" style="color: #feca57; font-size: 1.5em; margin-bottom: 10px;">0 ₺</h1>
-                    <div id="mt-status">Bol Şans!</div>
-                    <div class="grid" id="mt-grid"></div>
-                    <button class="action-btn" onclick="mt_createBoard()" style="width: auto; padding: 10px 30px;">Yeniden Başlat 🔄</button>
+                    
+                    <div id="mayinBaslangic">
+                        <p>Oynamak için bakiye yükleyin (Min 10 ₺)</p>
+                        <input type="number" id="mayinBakiyeInput" placeholder="Miktar..." style="width:150px; text-align:center;">
+                        <button class="action-btn" onclick="mayinBakiyeYukle()" style="width: auto; padding: 10px 20px;">YÜKLE</button>
+                    </div>
+
+                    <div id="mayinOyunAlani" style="display:none; width: 100%; text-align:center;">
+                        <button id="mt-baslaBtn" class="action-btn" style="background: #e17055; width: 100%; margin-bottom:10px;" onclick="mt_oyunBaslat()">BAHİS KOY VE BAŞLA (10 ₺)</button>
+                        <div id="mt-status">Bol Şans!</div>
+                        <div class="grid" id="mt-grid"></div>
+                        <button id="mt-tekrarBtn" class="action-btn" style="display:none; width: auto; padding: 10px 30px; margin-top:20px;" onclick="mt_tekrarOyna()">Tekrar Oyna 🔄</button>
+                    </div>
                 </div>
             </div>
 
@@ -312,6 +322,16 @@
                 } else {
                     document.getElementById("bardakBaslangic").style.display = "block";
                     document.getElementById("bardakOyunAlani").style.display = "none";
+                }
+            }
+            if (sayfaId === 'sayfa-mayintarlasi') {
+                if(bakiye >= 10) {
+                    document.getElementById("mayinBaslangic").style.display = "none";
+                    document.getElementById("mayinOyunAlani").style.display = "block";
+                    if(!mtStarted && !mt_isGameOver) document.getElementById("mt-baslaBtn").style.display = "inline-block";
+                } else {
+                    document.getElementById("mayinBaslangic").style.display = "block";
+                    document.getElementById("mayinOyunAlani").style.display = "none";
                 }
             }
             tumBakiyeleriGuncelle();
@@ -493,7 +513,15 @@
             }
         }
         function bekle(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
-        function ziyaretciSayisiniGetir() { fetch(`https://api.counterapi.dev/v1/cyberguess-demo-all/ziyaret/up`).then(r=>r.json()).then(d=>document.getElementById("ziyaretciSayisi").innerText=d.count); }
+        function ziyaretciSayisiniGetir() { 
+            let baslangicTarihi = new Date('2026-04-22').getTime();
+            let gecenZaman = Date.now() - baslangicTarihi;
+            let simuleZiyaret = Math.floor(gecenZaman / 10000) + 1542;
+            let cihazZiyareti = parseInt(localStorage.getItem('kisiselZiyaret')) || 0;
+            cihazZiyareti++;
+            localStorage.setItem('kisiselZiyaret', cihazZiyareti);
+            document.getElementById("ziyaretciSayisi").innerText = simuleZiyaret + cihazZiyareti; 
+        }
         document.getElementById('karanlikModToggle').addEventListener('change', function() { if(this.checked) document.body.classList.remove('light-mode'); else document.body.classList.add('light-mode'); });
 
         // --- MAYIN TARLASI OYUNU JS ---
@@ -501,6 +529,36 @@
         let mt_bombAmount = 15;
         let mt_squares = [];
         let mt_isGameOver = false;
+        let mtStarted = false;
+
+        function mayinBakiyeYukle() {
+            let miktar = parseInt(document.getElementById("mayinBakiyeInput").value);
+            if(miktar >= 10) { bakiye += miktar; document.getElementById("mayinBaslangic").style.display = "none"; document.getElementById("mayinOyunAlani").style.display = "block"; tumBakiyeleriGuncelle(); }
+            else alert("En az 10 ₺ yüklemelisin.");
+        }
+
+        function mt_oyunBaslat() {
+            if(bakiye < 10) { alert("Bakiye Yetersiz!"); return; }
+            bakiye -= 10; tumBakiyeleriGuncelle();
+            mtStarted = true;
+            document.getElementById("mt-baslaBtn").style.display = "none";
+            document.getElementById("mt-tekrarBtn").style.display = "none";
+            document.getElementById("mt-status").innerHTML = "Oyun Başladı! Dikkatli Ol!";
+            document.getElementById("mt-grid").style.opacity = "1";
+            mt_createBoard(); 
+        }
+
+        function mt_tekrarOyna() {
+            mtStarted = false;
+            document.getElementById("mt-tekrarBtn").style.display = "none";
+            document.getElementById("mt-baslaBtn").style.display = "inline-block";
+            document.getElementById("mt-status").innerHTML = "Bahis koyup başla!";
+            document.getElementById("mt-grid").style.opacity = "0.5";
+            if(bakiye < 10) {
+                document.getElementById("mayinBaslangic").style.display = "block";
+                document.getElementById("mayinOyunAlani").style.display = "none";
+            }
+        }
 
         function mt_createBoard() {
             const mt_grid = document.getElementById("mt-grid");
@@ -541,12 +599,14 @@
         }
 
         function mt_click(square, i) {
-            if (mt_isGameOver) return;
+            if (mt_isGameOver || !mtStarted) return;
             if (square.classList.contains('checked') || square.classList.contains('flag')) return;
 
             if (square.dataset.type === 'bomb') { mt_gameOver(); } 
             else {
                 let total = parseInt(square.getAttribute('data')) || 0;
+                bakiye += 1; tumBakiyeleriGuncelle(); // Güvenli adım ödülü
+                document.getElementById("mt-status").innerHTML = "Güvenli! +1 ₺ 💰";
                 if (total !== 0) { square.classList.add('checked'); square.innerHTML = total; return; }
                 mt_checkSquare(square, i);
             }
@@ -603,9 +663,10 @@
         }
 
         function mt_gameOver() {
-            document.getElementById("mt-status").innerHTML = '💥 BOOM! Oyun Bitti!';
+            document.getElementById("mt-status").innerHTML = '💥 BOOM! Oyun Bitti! Kaybettin.';
             document.getElementById("mt-status").style.color = '#ff7675';
             mt_isGameOver = true;
+            document.getElementById("mt-tekrarBtn").style.display = "inline-block";
             mt_squares.forEach(square => {
                 if (square.dataset.type === 'bomb') {
                     square.innerHTML = '💣'; square.classList.add('bomb');
